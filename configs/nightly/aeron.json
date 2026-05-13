@@ -10,35 +10,22 @@
       "branch": "ksu_susfs"
     },
     "output_image": "Image.gz-dtb",
-    "additional_script_link": "disabled",
-    "additional_post_script_link": "disabled",
-    "kp": {
-      "use": false,
-      "kpimg_link": ""
-    },
     "kernelsu": {
       "enable": true,
       "setupLink": "https://raw.githubusercontent.com/XDL-MoonWake/KernelSU-Next/refs/heads/legacy-susfs-v2/kernel/setup.sh",
-      "setupArg": "legacy-susfs-v2",
-      "setupName": "KernelSU-Next",
-      "needPatch": false,
-      "susfsLink": ""
+      "setupArg": "legacy-susfs-v2"
     },
     "toolchains": [
       {
         "repo": "https://gitlab.com/DR-KernelArchive/clang/r563880.git",
         "branch": "main",
         "name": "clang-AOSP",
-        "binPath": [
-          "bin"
-        ]
+        "binPath": ["bin"]
       }
     ],
-    "ccache": false,
     "params": {
       "ARCH": "arm64",
       "CC": "clang",
-      "KCFLAGS": "-O3 -march=armv8.2-a+crypto+fp16+dotprod -mcpu=cortex-a78 -mtune=cortex-a78",
       "build_out": "Image.gz-dtb",
       "externalCommand": {
         "LLVM": "1",
@@ -57,7 +44,6 @@
       }
     },
     "AnyKernel3": {
-      "use": "true",
       "repo": "https://github.com/DPR-MoonWake/AnyKernel3",
       "branch": "aeron"
     }

@@ -32,13 +32,20 @@ jobs:
         run: |
           CONFIG_TYPE="${{ github.event.inputs.config_type }}"
           FILES=$(find "configs/$CONFIG_TYPE" -type f -name "*.json")
-          if [ -z "$FILES" ]; then echo "No se encontraron archivos JSON"; exit 1; fi
+          
+          if [ -z "$FILES" ]; then 
+            echo "ERROR: No se encontraron archivos JSON en configs/$CONFIG_TYPE/"
+            exit 1
+          fi
+
           repos_json="[]"
           for process_file in $FILES; do
             sed -i '1s/^\xEF\xBB\xBF//' "$process_file"
-            repos_json=$(jq -s 'add' <(echo "$repos_json") "$process_file")
+            # Usamos -c para generar JSON compacto en una sola línea
+            repos_json=$(jq -c -s 'add' <(echo "$repos_json") "$process_file")
           done
-          echo "repos=$repos_json" >> $GITHUB_OUTPUT
+
+          echo "repos=$repos_json" >> "$GITHUB_OUTPUT"
 
   Build-Kernel:
     name: "Compilar Kernel"
@@ -92,15 +99,7 @@ jobs:
       - name: "Configuración Pro-Droidspaces"
         working-directory: ${{ env.KERNEL_NAME }}
         run: |
-          # Asegurar que el directorio de configs existe
-          mkdir -p arch/arm64/configs/
-          DEFCONFIG_PATH="arch/arm64/configs/${{ matrix.repos.kernelSource.defconfig }}"
-          
-          # Si el defconfig no está en la raíz de configs, lo buscamos
-          if [ ! -f "$DEFCONFIG_PATH" ]; then
-            DEFCONFIG_PATH=$(find arch/arm64/configs/ -name "${{ matrix.repos.kernelSource.defconfig }}" | head -n 1)
-          fi
-
+          DEFCONFIG_PATH=$(find arch/arm64/configs/ -name "${{ matrix.repos.kernelSource.defconfig }}" | head -n 1)
           cat <<EOF >> "$DEFCONFIG_PATH"
           CONFIG_NAMESPACES=y
           CONFIG_UTS_NS=y
@@ -119,31 +118,23 @@ jobs:
       - name: "Compilar Kernel"
         working-directory: ${{ env.KERNEL_NAME }}
         run: |
-          # Argumentos base
           ARGS="ARCH=${{ matrix.repos.params.ARCH }} O=${{ env.OUT_DIR }} CC=${{ matrix.repos.params.CC }}"
-          
-          # Extraer comandos adicionales del JSON de forma segura
           EXT_ARGS=$(echo '${{ toJSON(matrix.repos.params.externalCommand) }}' | jq -r 'to_entries | .[] | "\(.key)=\(.value)"' | xargs)
           
-          echo "Haciendo defconfig..."
           make $ARGS $EXT_ARGS ${{ matrix.repos.kernelSource.defconfig }}
-          
-          # Aplicar fragmentos extra si existen
           for extra in ${{ matrix.repos.kernelSource.extraConfig }}; do
              make $ARGS $EXT_ARGS $extra || true
           done
-          
-          echo "Iniciando compilación principal..."
           make -j$(nproc --all) $ARGS $EXT_ARGS ${{ matrix.repos.params.build_out }}
 
       - name: "Empaquetar"
         run: |
           cp -f ${{ env.OUT_DIR }}/arch/${{ matrix.repos.params.ARCH }}/boot/${{ matrix.repos.output_image }} ./AnyKernel3/
           cd AnyKernel3
-          zip -r ../MoonWake-Ruby-Droidspaces.zip . -x .git README.md
+          zip -r ../MoonWake-Ruby-Aeron.zip . -x .git README.md
 
       - name: "Subir Artefacto"
         uses: actions/upload-artifact@v4
         with:
           name: MoonWake-Ruby-Aeron
-          path: MoonWake-Ruby-Droidspaces.zip
+          path: MoonWake-Ruby-Aeron.zip
