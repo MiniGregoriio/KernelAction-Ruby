@@ -5,7 +5,7 @@
       "vendor": "xiaomi",
       "name": "Aeron-Phoenix",
       "defconfig": "ruby_defconfig",
-      "extraConfig": "vendor/kernelsu.config vendor/susfs.config",
+      "extraConfig": ["vendor/kernelsu.config", "vendor/susfs.config"],
       "repo": "https://github.com/DPR-MoonWake/aeron_kernel_xiaomi_ruby",
       "branch": "ksu_susfs"
     },
@@ -17,9 +17,8 @@
     },
     "toolchains": [
       {
-        "repo": "https://gitlab.com/DR-KernelArchive/clang/r563880.git",
-        "branch": "main",
         "name": "clang-AOSP",
+        "url": "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz",
         "binPath": ["bin"]
       }
     ],
@@ -44,6 +43,7 @@
       }
     },
     "AnyKernel3": {
+      "use": "true",
       "repo": "https://github.com/DPR-MoonWake/AnyKernel3",
       "branch": "aeron"
     }
