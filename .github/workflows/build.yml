@@ -433,7 +433,7 @@ jobs:
             make ${{ env.args }} ${{ env.DEFCONFIG_NAME }}
           fi
 
-      - name: "Enable container namespace configs"
+      - name: "Enable container namespace configs and devtmpfs"
         working-directory: ${{ env.KERNEL_NAME }}
         env:
           args: ${{ steps.generate-args.outputs.args }}
@@ -441,6 +441,7 @@ jobs:
         run: |
           echo "========================================"
           echo " Enabling container namespace configs"
+          echo " Enabling devtmpfs for Droidspaces"
           echo "========================================"
 
           CONFIG_FILE="${{ env.OUT_DIR }}/.config"
@@ -458,7 +459,7 @@ jobs:
           chmod +x ./scripts/config || true
 
           echo ""
-          echo "Trying to enable dependencies first..."
+          echo "Trying to enable dependencies, namespace configs, tmpfs and devtmpfs..."
           ./scripts/config --file "$CONFIG_FILE" \
             --enable SYSVIPC \
             --enable POSIX_MQUEUE \
@@ -467,7 +468,12 @@ jobs:
             --enable IPC_NS \
             --enable USER_NS \
             --enable PID_NS \
-            --enable NET_NS
+            --enable NET_NS \
+            --enable TMPFS \
+            --enable TMPFS_POSIX_ACL \
+            --enable TMPFS_XATTR \
+            --enable DEVTMPFS \
+            --enable DEVTMPFS_MOUNT
 
           echo ""
           echo "Running olddefconfig..."
@@ -483,18 +489,41 @@ jobs:
             --enable IPC_NS \
             --enable USER_NS \
             --enable PID_NS \
-            --enable NET_NS
+            --enable NET_NS \
+            --enable TMPFS \
+            --enable TMPFS_POSIX_ACL \
+            --enable TMPFS_XATTR \
+            --enable DEVTMPFS \
+            --enable DEVTMPFS_MOUNT
 
           make ${{ env.args }} olddefconfig
 
           echo ""
-          echo "Final namespace/dependency config status:"
-          grep -E 'CONFIG_NAMESPACES|CONFIG_UTS_NS|CONFIG_IPC_NS|CONFIG_USER_NS|CONFIG_PID_NS|CONFIG_NET_NS|CONFIG_SYSVIPC|CONFIG_POSIX_MQUEUE' "$CONFIG_FILE" || true
+          echo "Final namespace/devtmpfs/dependency config status:"
+          grep -E 'CONFIG_NAMESPACES|CONFIG_UTS_NS|CONFIG_IPC_NS|CONFIG_USER_NS|CONFIG_PID_NS|CONFIG_NET_NS|CONFIG_SYSVIPC|CONFIG_POSIX_MQUEUE|CONFIG_TMPFS|CONFIG_TMPFS_POSIX_ACL|CONFIG_TMPFS_XATTR|CONFIG_DEVTMPFS|CONFIG_DEVTMPFS_MOUNT' "$CONFIG_FILE" || true
           echo ""
 
           missing=0
 
+          echo "Checking required namespace configs..."
           for cfg in NAMESPACES UTS_NS IPC_NS USER_NS PID_NS NET_NS; do
+            if ! grep -qE "^(CONFIG_${cfg}=|# CONFIG_${cfg} is not set)" "$CONFIG_FILE"; then
+              echo "WARN: CONFIG_${cfg} not present in this kernel tree; skipping."
+              continue
+            fi
+
+            if ! grep -q "^CONFIG_${cfg}=y" "$CONFIG_FILE"; then
+              echo "WARN: CONFIG_${cfg} could not be enabled. Kernel Kconfig or dependencies may block it."
+              missing=1
+            else
+              echo "OK: CONFIG_${cfg}=y"
+            fi
+          done
+
+          echo ""
+          echo "Checking devtmpfs/tmpfs configs..."
+
+          for cfg in TMPFS TMPFS_POSIX_ACL TMPFS_XATTR DEVTMPFS DEVTMPFS_MOUNT; do
             if ! grep -qE "^(CONFIG_${cfg}=|# CONFIG_${cfg} is not set)" "$CONFIG_FILE"; then
               echo "WARN: CONFIG_${cfg} not present in this kernel tree; skipping."
               continue
@@ -511,11 +540,11 @@ jobs:
           echo ""
 
           if [ "$missing" -ne 0 ]; then
-            echo "WARNING: One or more namespace configs could not be enabled."
+            echo "WARNING: One or more container/devtmpfs configs could not be enabled."
             echo "Continuing anyway so the kernel can still compile."
-            echo "If you strictly need all namespace configs, you must patch the kernel source or add missing dependencies."
+            echo "If Droidspaces still warns about devtmpfs, the kernel source may block CONFIG_DEVTMPFS."
           else
-            echo "All requested namespace configs are enabled."
+            echo "All requested namespace and devtmpfs configs are enabled."
           fi
 
       - name: "Build kernel"
@@ -551,9 +580,23 @@ jobs:
           echo "========================================"
           echo "Now building kernel"
 
-          make ${{ env.args }} ${{ env.build_out }} V=0 2>&1 | \
+          set +e
+
+          make ${{ env.args }} ${{ env.build_out }} V=0 2>&1 | tee build.log | \
             grep --line-buffered --color=always -E \
-            'warning:|error:|undefined reference|No rule to make target|KernelSU|SUSFS|LTO|MODPOST|VMLINUX|^[[:space:]]*(GEN|KSYM|SORTEX|SYSMAP|OBJCOPY|GZIP|DTC|CAT)\b' || true
+            'warning:|error:|undefined reference|No rule to make target|KernelSU|SUSFS|LTO|MODPOST|VMLINUX|^[[:space:]]*(GEN|KSYM|SORTEX|SYSMAP|OBJCOPY|GZIP|DTC|CAT)\b'
+
+          make_status=${PIPESTATUS[0]}
+
+          set -e
+
+          if [ "$make_status" -ne 0 ]; then
+            echo ""
+            echo "ERROR: Kernel build failed with exit code $make_status"
+            echo "Last 120 lines of build.log:"
+            tail -n 120 build.log || true
+            exit "$make_status"
+          fi
 
           echo "Build finished!"
 
