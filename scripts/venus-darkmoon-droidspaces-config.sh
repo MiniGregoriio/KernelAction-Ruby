@@ -3,6 +3,7 @@ set -euo pipefail
 
 echo "========================================"
 echo " Creating venus Darkmoon Droidspaces config"
+echo " Matching working Darkmoon-KSU-Next kernel"
 echo "========================================"
 
 CONFIG_DIR="arch/arm64/configs/vendor"
@@ -41,6 +42,11 @@ CONFIG_MEMCG=y
 CONFIG_MEMCG_SWAP=y
 CONFIG_CGROUP_FREEZER=y
 CONFIG_CGROUP_PIDS=y
+
+# Match working Darkmoon kernel:
+# uname -r = 5.4.288-Darkmoon-KSU-Next
+CONFIG_LOCALVERSION="-Darkmoon-KSU-Next"
+CONFIG_LOCALVERSION_AUTO=y
 EOF
 
 echo "Created config fragment:"

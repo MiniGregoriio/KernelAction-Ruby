@@ -26,8 +26,9 @@
     },
     "toolchains": [
       {
-        "repo": "https://gitlab.com/DR-KernelArchive/clang/r563880.git",
-        "branch": "main",
+        "url": "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r530567.tar.gz",
+        "repo": "",
+        "branch": "",
         "name": "clang-AOSP",
         "binPath": ["/bin"]
       }
@@ -39,8 +40,8 @@
       "KCFLAGS": "",
       "build_out": "Image",
       "externalCommand": {
-        "KBUILD_BUILD_HOST": "github.com",
-        "KBUILD_BUILD_USER": "builder",
+        "KBUILD_BUILD_HOST": "yourMom",
+        "KBUILD_BUILD_USER": "kami",
         "CROSS_COMPILE": "clang-AOSP/bin/aarch64-linux-gnu-",
         "CROSS_COMPILE_ARM32": "clang-AOSP/bin/arm-linux-gnueabi-",
         "CROSS_COMPILE_COMPAT": "clang-AOSP/bin/arm-linux-gnueabi-",
