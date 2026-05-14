@@ -39,8 +39,8 @@
       "KCFLAGS": "",
       "build_out": "Image",
       "externalCommand": {
-        "KBUILD_BUILD_HOST": "github.com",
-        "KBUILD_BUILD_USER": "builder",
+        "KBUILD_BUILD_HOST": "build-host",
+        "KBUILD_BUILD_USER": "build-user",
         "CROSS_COMPILE": "clang-AOSP/bin/aarch64-linux-gnu-",
         "CROSS_COMPILE_ARM32": "clang-AOSP/bin/arm-linux-gnueabi-",
         "CROSS_COMPILE_COMPAT": "clang-AOSP/bin/arm-linux-gnueabi-",
