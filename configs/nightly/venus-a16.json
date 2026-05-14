@@ -26,8 +26,9 @@
     },
     "toolchains": [
       {
-        "repo": "https://gitlab.com/DR-KernelArchive/clang/r487747.git",
-        "branch": "main",
+        "url": "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/788f1e86014660a5230ba4e9f52c39d5b393cd2b/clang-r487747.tar.gz",
+        "repo": "",
+        "branch": "",
         "name": "clang-AOSP",
         "binPath": ["/bin"]
       }
