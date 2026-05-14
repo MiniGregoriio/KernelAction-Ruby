@@ -410,14 +410,6 @@ jobs:
           cd scripts
           sed -i 's/ -dirty//g' setlocalversion
 
-      - name: "Patch KernelSU path_umount compatibility"
-        working-directory: ${{ env.KERNEL_NAME }}
-        if: ${{ env.kernelSU == 'true' }}
-        shell: bash
-        run: |
-          echo "Applying KernelSU path_umount compatibility patch..."
-          bash "${{ github.workspace }}/scripts/patch-kernelsu-path-umount.sh"
-
       - name: "Run Additional Pre Script"
         working-directory: ${{ env.KERNEL_NAME }}
         if: ${{ env.additional_script_link != 'disabled' }}
