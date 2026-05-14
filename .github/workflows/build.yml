@@ -33,7 +33,7 @@ permissions:
   discussions: write
 
 jobs:
-  Set-repos:
+  SetRepos:
     name: "Parse configs.json"
     runs-on: ubuntu-24.04
     outputs:
@@ -126,20 +126,20 @@ jobs:
     runs-on: ubuntu-24.04
     continue-on-error: true
     needs:
-      - Set-repos
+      - SetRepos
 
     strategy:
       max-parallel: 10
       fail-fast: false
       matrix:
-        repos: ${{ fromJSON(needs.Set-repos.outputs.repos) }}
+        repos: ${{ fromJSON(needs.SetRepos.outputs.repos) }}
 
     env:
       RUN_NUMBER: ${{ github.run_number }}
       WORKSPACE: ${{ github.workspace }}
 
-      builddate: "${{ needs.Set-repos.outputs.builddate }}"
-      buildstamp: "${{ needs.Set-repos.outputs.buildstamp }}"
+      builddate: "${{ needs.SetRepos.outputs.builddate }}"
+      buildstamp: "${{ needs.SetRepos.outputs.buildstamp }}"
       output_image: ${{ matrix.repos.output_image }}
 
       KERNEL_NAME: ${{ matrix.repos.kernelSource.name }}
@@ -301,6 +301,8 @@ jobs:
           toolchains_num="$(echo "$toolchains" | jq 'length')"
           echo "There are $toolchains_num defined toolchains."
 
+          echo "SYSTEM_TOOLCHAIN=false" >> "$GITHUB_ENV"
+
           if [ "$toolchains_num" -eq 0 ]; then
             echo "No external toolchains defined. Using system clang/lld from runner."
             echo "SYSTEM_TOOLCHAIN=true" >> "$GITHUB_ENV"
@@ -316,8 +318,6 @@ jobs:
             ld.lld --version || true
             exit 0
           fi
-
-          echo "SYSTEM_TOOLCHAIN=false" >> "$GITHUB_ENV"
 
           for ((i=0;i<toolchains_num;i++)); do
             toolchain_name=$(echo "$toolchains" | jq -r ".[$i].name")
@@ -863,14 +863,14 @@ jobs:
 
   publish:
     needs:
-      - Set-repos
+      - SetRepos
       - Build-Kernel
     runs-on: ubuntu-latest
     if: ${{ github.event.inputs.full_dump == 'true' }}
 
     env:
-      buildfile: "${{ needs.Set-repos.outputs.buildfile }}"
-      buildstamp: "${{ needs.Set-repos.outputs.buildstamp }}"
+      buildfile: "${{ needs.SetRepos.outputs.buildfile }}"
+      buildstamp: "${{ needs.SetRepos.outputs.buildstamp }}"
 
     steps:
       - name: "Install tools"
@@ -914,4 +914,3 @@ jobs:
         with:
           name: "all-kernel-build-dumps-${{ github.event.inputs.config_type }}-${{ env.buildstamp }}-run${{ github.run_number }}-attempt${{ github.run_attempt }}-${{ github.run_id }}"
           path: packed_kernels
-``
