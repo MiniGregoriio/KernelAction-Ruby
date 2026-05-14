@@ -182,7 +182,13 @@ jobs:
             zip unzip tar gzip bzip2 rar unrar binwalk libelf-dev \
             checkinstall libncursesw5-dev libsqlite3-dev tk-dev \
             libgdbm-dev libc6-dev libbz2-dev libffi-dev \
-            jq lz4
+            jq lz4 clang lld llvm
+
+          echo "System clang:"
+          clang --version || true
+
+          echo "System lld:"
+          ld.lld --version || true
 
       - name: "Create cache key from repos"
         if: ${{ env.ccache == 'true' }}
@@ -295,11 +301,35 @@ jobs:
           toolchains_num="$(echo "$toolchains" | jq 'length')"
           echo "There are $toolchains_num defined toolchains."
 
+          if [ "$toolchains_num" -eq 0 ]; then
+            echo "No external toolchains defined. Using system clang/lld from runner."
+            echo "SYSTEM_TOOLCHAIN=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          first_system=$(echo "$toolchains" | jq -r '.[0].system // false')
+
+          if [ "$first_system" = "true" ]; then
+            echo "System toolchain requested by JSON. Using system clang/lld from runner."
+            echo "SYSTEM_TOOLCHAIN=true" >> "$GITHUB_ENV"
+            clang --version || true
+            ld.lld --version || true
+            exit 0
+          fi
+
+          echo "SYSTEM_TOOLCHAIN=false" >> "$GITHUB_ENV"
+
           for ((i=0;i<toolchains_num;i++)); do
             toolchain_name=$(echo "$toolchains" | jq -r ".[$i].name")
             toolchain_repo=$(echo "$toolchains" | jq -r ".[$i].repo // empty")
             toolchain_branch=$(echo "$toolchains" | jq -r ".[$i].branch // empty")
             toolchain_url=$(echo "$toolchains" | jq -r ".[$i].url // empty")
+            toolchain_system=$(echo "$toolchains" | jq -r ".[$i].system // false")
+
+            if [ "$toolchain_system" = "true" ]; then
+              echo "Skipping external setup for system toolchain entry: $toolchain_name"
+              continue
+            fi
 
             echo "Processing toolchain: $toolchain_name"
 
@@ -372,7 +402,8 @@ jobs:
               esac
             fi
 
-            jq -r ".[$i].binPath[] | tostring" <<< "$toolchains" | while read -r bin_path; do
+            jq -r ".[$i].binPath[]? | tostring" <<< "$toolchains" | while read -r bin_path; do
+              [ -z "$bin_path" ] && continue
               echo "$WORKSPACE/$toolchain_name/$bin_path" >> "$GITHUB_PATH"
               echo "Added to PATH: $WORKSPACE/$toolchain_name/$bin_path"
             done
@@ -388,9 +419,7 @@ jobs:
           echo "PATH Variable: $PATH"
 
           THREAD="$(nproc --all)"
-
-          toolchain_name=$(echo "$toolchains" | jq -r ".[0].name")
-          export PATH="${{ env.WORKSPACE }}/$toolchain_name/bin:${{ env.WORKSPACE }}/$toolchain_name:$PATH"
+          SYSTEM_TOOLCHAIN="${SYSTEM_TOOLCHAIN:-false}"
 
           ARCH=$(echo "$params" | jq -r ".ARCH")
           CC=$(echo "$params" | jq -r '(.CC // "")')
@@ -416,15 +445,32 @@ jobs:
             args="$args KAFLAGS=\"$KAFLAGS\""
           fi
 
-          if [ -n "$CC" ] && [ "$CC" != "null" ]; then
-            if [[ "$CC" == *"/"* ]]; then
-              CC="${{ env.WORKSPACE }}/$CC"
+          if [ "$SYSTEM_TOOLCHAIN" = "true" ]; then
+            echo "Using system clang/lld mode."
+
+            if [ -z "$CC" ] || [ "$CC" = "null" ]; then
+              CC="clang"
             fi
 
-            if [ "${{ env.ccache }}" = "true" ]; then
-              args="$args CC=\"ccache $CC\""
-            else
-              args="$args CC=$CC"
+            args="$args CC=$CC"
+          else
+            toolchains_num="$(echo "$toolchains" | jq 'length')"
+
+            if [ "$toolchains_num" -gt 0 ]; then
+              toolchain_name=$(echo "$toolchains" | jq -r ".[0].name")
+              export PATH="${{ env.WORKSPACE }}/$toolchain_name/bin:${{ env.WORKSPACE }}/$toolchain_name:$PATH"
+            fi
+
+            if [ -n "$CC" ] && [ "$CC" != "null" ]; then
+              if [[ "$CC" == *"/"* ]]; then
+                CC="${{ env.WORKSPACE }}/$CC"
+              fi
+
+              if [ "${{ env.ccache }}" = "true" ]; then
+                args="$args CC=\"ccache $CC\""
+              else
+                args="$args CC=$CC"
+              fi
             fi
           fi
 
@@ -434,12 +480,14 @@ jobs:
             key=$(echo "$externalCommand" | cut -d= -f1)
             value=$(echo "$externalCommand" | cut -d= -f2-)
 
-            if [[ "$value" == *"/"* ]]; then
-              value="${{ env.WORKSPACE }}/$value"
+            if [ "$SYSTEM_TOOLCHAIN" != "true" ]; then
+              if [[ "$value" == *"/"* ]]; then
+                value="${{ env.WORKSPACE }}/$value"
+              fi
             fi
 
             args="$args $key=$value"
-          done < <(jq -r '.externalCommand | to_entries[] | "\(.key)=\(.value)"' <<< "$params")
+          done < <(jq -r '.externalCommand | to_entries[]? | "\(.key)=\(.value)"' <<< "$params")
 
           echo "Final make args:"
           echo "$args"
@@ -660,6 +708,7 @@ jobs:
           echo "KernelSU Enabled  : ${{ matrix.repos.kernelsu.enable }}"
           echo "KernelPatch       : ${{ matrix.repos.kp.use }}"
           echo "ccache Enabled    : ${{ matrix.repos.ccache }}"
+          echo "System Toolchain  : ${SYSTEM_TOOLCHAIN:-false}"
           echo "Build Stamp       : ${{ env.buildstamp }}"
           echo "========================================"
           echo "Now building kernel"
@@ -865,3 +914,4 @@ jobs:
         with:
           name: "all-kernel-build-dumps-${{ github.event.inputs.config_type }}-${{ env.buildstamp }}-run${{ github.run_number }}-attempt${{ github.run_attempt }}-${{ github.run_id }}"
           path: packed_kernels
+``

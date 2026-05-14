@@ -3,7 +3,7 @@ set -euo pipefail
 
 echo "========================================"
 echo " Creating venus SukiSU Droidspaces config"
-echo " Matching LK kernel localversion"
+echo " Matching working LK kernel localversion"
 echo "========================================"
 
 CONFIG_DIR="arch/arm64/configs/vendor"
@@ -34,11 +34,14 @@ CONFIG_TMPFS_POSIX_ACL=y
 CONFIG_TMPFS_XATTR=y
 
 # Match the booting SukiSU/SUSFS kernel:
-# uname -r = 5.4.302-LK+
+# uname -r from working boot image: 5.4.302-LK+
 CONFIG_LOCALVERSION="-LK"
 # CONFIG_LOCALVERSION_AUTO is not set
 EOF
 
+# The booting kernel release is 5.4.302-LK+
+# CONFIG_LOCALVERSION contributes "-LK"
+# .scmversion contributes "+"
 echo "+" > .scmversion
 
 echo "Created config fragment:"
