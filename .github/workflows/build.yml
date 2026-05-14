@@ -15,7 +15,7 @@ on:
           - release
           - nightly
       config_file:
-        description: "Path to a specific config JSON file. Example: ruby.json. Leave blank to use all configs."
+        description: "Path to a specific config JSON file. Example: ruby.json or venus-sukisu-lineage.json. Leave blank to use all configs."
         required: false
         default: ""
         type: string
@@ -168,6 +168,9 @@ jobs:
       additional_post_script_link: ${{ matrix.repos.additional_script_post_link }}
 
     steps:
+      - name: "Checkout workflow repository"
+        uses: actions/checkout@v4
+
       - name: "Install prerequisites"
         shell: bash
         run: |
@@ -205,10 +208,34 @@ jobs:
           params: "${{ toJSON(matrix.repos.AnyKernel3) }}"
         shell: bash
         run: |
+          set -euo pipefail
+
           ANYKERNEL_REPO=$(echo "$params" | jq -r ".repo")
           ANYKERNEL_BRANCH=$(echo "$params" | jq -r ".branch")
 
-          git clone --recursive --depth=1 -j "$(nproc)" --branch "$ANYKERNEL_BRANCH" "$ANYKERNEL_REPO" AnyKernel3
+          echo "AnyKernel3 repo   : $ANYKERNEL_REPO"
+          echo "AnyKernel3 branch : $ANYKERNEL_BRANCH"
+
+          if [ -z "$ANYKERNEL_REPO" ] || [ "$ANYKERNEL_REPO" = "null" ]; then
+            echo "ERROR: AnyKernel3 repo is empty."
+            exit 1
+          fi
+
+          if [ -z "$ANYKERNEL_BRANCH" ] || [ "$ANYKERNEL_BRANCH" = "null" ] || [ "$ANYKERNEL_BRANCH" = "default" ]; then
+            echo "No AnyKernel3 branch specified. Cloning default branch..."
+            git clone --recursive --depth=1 -j "$(nproc)" "$ANYKERNEL_REPO" AnyKernel3
+          else
+            echo "Checking if AnyKernel3 branch '$ANYKERNEL_BRANCH' exists..."
+
+            if git ls-remote --exit-code --heads "$ANYKERNEL_REPO" "$ANYKERNEL_BRANCH" >/dev/null 2>&1; then
+              git clone --recursive --depth=1 -j "$(nproc)" --branch "$ANYKERNEL_BRANCH" "$ANYKERNEL_REPO" AnyKernel3
+            else
+              echo "ERROR: AnyKernel3 branch '$ANYKERNEL_BRANCH' not found in $ANYKERNEL_REPO"
+              echo "Available branches:"
+              git ls-remote --heads "$ANYKERNEL_REPO" | sed 's#.*/##' | head -n 80
+              exit 1
+            fi
+          fi
 
           echo "Setup AnyKernel3 => ($ANYKERNEL_REPO)"
 
@@ -216,11 +243,44 @@ jobs:
         id: clone-kernel
         shell: bash
         run: |
-          git clone --recursive --depth=1 -j "$(nproc)" --branch "$KERNEL_BRANCH" "$KERNEL_REPO" "$KERNEL_NAME"
+          set -euo pipefail
+
+          echo "Kernel repo   : $KERNEL_REPO"
+          echo "Kernel branch : $KERNEL_BRANCH"
+          echo "Kernel folder : $KERNEL_NAME"
+
+          if [ -z "${KERNEL_REPO:-}" ] || [ "$KERNEL_REPO" = "null" ]; then
+            echo "ERROR: KERNEL_REPO is empty."
+            exit 1
+          fi
+
+          if [ -z "${KERNEL_BRANCH:-}" ] || [ "$KERNEL_BRANCH" = "default" ] || [ "$KERNEL_BRANCH" = "null" ]; then
+            echo "No kernel branch specified. Cloning default branch from upstream..."
+            git clone --recursive --depth=1 -j "$(nproc)" "$KERNEL_REPO" "$KERNEL_NAME"
+          else
+            echo "Checking if branch '$KERNEL_BRANCH' exists in $KERNEL_REPO..."
+
+            if git ls-remote --exit-code --heads "$KERNEL_REPO" "$KERNEL_BRANCH" >/dev/null 2>&1; then
+              echo "Branch '$KERNEL_BRANCH' exists. Cloning..."
+              git clone --recursive --depth=1 -j "$(nproc)" --branch "$KERNEL_BRANCH" "$KERNEL_REPO" "$KERNEL_NAME"
+            else
+              echo "ERROR: Branch '$KERNEL_BRANCH' not found in $KERNEL_REPO"
+              echo ""
+              echo "Available branches:"
+              git ls-remote --heads "$KERNEL_REPO" | sed 's#.*/##' | head -n 80
+              echo ""
+              echo "Fix your JSON kernelSource.branch or set it to an empty string to use the default branch."
+              exit 1
+            fi
+          fi
 
           echo ""
           echo "Kernel is at commit:"
           git -C "$KERNEL_NAME" rev-parse HEAD
+          echo ""
+
+          echo "Kernel current branch/ref:"
+          git -C "$KERNEL_NAME" branch --show-current || true
           echo ""
 
           echo "KERNEL_COMMIT_HASH=$(git -C "$KERNEL_NAME" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -503,7 +563,7 @@ jobs:
 
           echo ""
           echo "Final namespace/devtmpfs/dependency config status:"
-          grep -E 'CONFIG_NAMESPACES|CONFIG_UTS_NS|CONFIG_IPC_NS|CONFIG_USER_NS|CONFIG_PID_NS|CONFIG_NET_NS|CONFIG_SYSVIPC|CONFIG_POSIX_MQUEUE|CONFIG_TMPFS|CONFIG_TMPFS_POSIX_ACL|CONFIG_TMPFS_XATTR|CONFIG_DEVTMPFS|CONFIG_DEVTMPFS_MOUNT' "$CONFIG_FILE" || true
+          grep -E 'CONFIG_NAMESPACES|CONFIG_UTS_NS|CONFIG_IPC_NS|CONFIG_USER_NS|CONFIG_PID_NS|CONFIG_NET_NS|CONFIG_SYSVIPC|CONFIG_POSIX_MQUEUE|CONFIG_TMPFS|CONFIG_TMPFS_POSIX_ACL|CONFIG_TMPFS_XATTR|CONFIG_DEVTMPFS|CONFIG_DEVTMPFS_MOUNT|CONFIG_LOCALVERSION|CONFIG_LOCALVERSION_AUTO' "$CONFIG_FILE" || true
           echo ""
 
           missing=0
@@ -550,6 +610,26 @@ jobs:
             echo "All requested namespace and devtmpfs configs are enabled."
           fi
 
+      - name: "Print generated kernel version"
+        working-directory: ${{ env.KERNEL_NAME }}
+        shell: bash
+        run: |
+          echo "========================================"
+          echo " Generated kernel version files"
+          echo "========================================"
+
+          echo ""
+          echo "utsrelease.h:"
+          cat "${{ env.OUT_DIR }}/include/generated/utsrelease.h" || true
+
+          echo ""
+          echo "compile.h:"
+          cat "${{ env.OUT_DIR }}/include/generated/compile.h" || true
+
+          echo ""
+          echo ".config localversion:"
+          grep -E 'CONFIG_LOCALVERSION|CONFIG_LOCALVERSION_AUTO' "${{ env.OUT_DIR }}/.config" || true
+
       - name: "Build kernel"
         working-directory: ${{ env.KERNEL_NAME }}
         env:
@@ -588,7 +668,7 @@ jobs:
 
           make ${{ env.args }} ${{ env.build_out }} V=0 2>&1 | tee build.log | \
             grep --line-buffered --color=always -E \
-            'warning:|error:|undefined reference|No rule to make target|KernelSU|SUSFS|LTO|MODPOST|VMLINUX|^[[:space:]]*(GEN|KSYM|SORTEX|SYSMAP|OBJCOPY|GZIP|DTC|CAT)\b'
+            'warning:|error:|undefined reference|No rule to make target|KernelSU|SukiSU|SUSFS|LTO|MODPOST|VMLINUX|^[[:space:]]*(GEN|KSYM|SORTEX|SYSMAP|OBJCOPY|GZIP|DTC|CAT)\b'
 
           make_status=${PIPESTATUS[0]}
 

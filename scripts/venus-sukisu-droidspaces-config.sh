@@ -39,10 +39,6 @@ CONFIG_LOCALVERSION="-LK"
 # CONFIG_LOCALVERSION_AUTO is not set
 EOF
 
-# The booting kernel is 5.4.302-LK+
-# CONFIG_LOCALVERSION gives "-LK"
-# .scmversion gives "+"
-# final expected release: 5.4.302-LK+
 echo "+" > .scmversion
 
 echo "Created config fragment:"
