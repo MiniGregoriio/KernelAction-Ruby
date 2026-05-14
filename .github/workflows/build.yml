@@ -39,6 +39,7 @@ jobs:
     outputs:
       repos: ${{ steps.generate-matrix.outputs.repos }}
       builddate: ${{ steps.generate-builddate.outputs.builddate }}
+      buildstamp: ${{ steps.generate-builddate.outputs.buildstamp }}
       buildfile: ${{ steps.generate-matrix.outputs.buildfile }}
 
     steps:
@@ -113,11 +114,12 @@ jobs:
             echo "buildfile=all config file mode" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: "Set builddate"
+      - name: "Set builddate and buildstamp"
         id: generate-builddate
         shell: bash
         run: |
           echo "builddate=$(date '+%Y%m%d')" >> "$GITHUB_OUTPUT"
+          echo "buildstamp=$(date '+%Y%m%d-%H%M%S')" >> "$GITHUB_OUTPUT"
 
   Build-Kernel:
     name: "Build kernel"
@@ -137,6 +139,7 @@ jobs:
       WORKSPACE: ${{ github.workspace }}
 
       builddate: "${{ needs.Set-repos.outputs.builddate }}"
+      buildstamp: "${{ needs.Set-repos.outputs.buildstamp }}"
       output_image: ${{ matrix.repos.output_image }}
 
       KERNEL_NAME: ${{ matrix.repos.kernelSource.name }}
@@ -577,6 +580,7 @@ jobs:
           echo "KernelSU Enabled  : ${{ matrix.repos.kernelsu.enable }}"
           echo "KernelPatch       : ${{ matrix.repos.kp.use }}"
           echo "ccache Enabled    : ${{ matrix.repos.ccache }}"
+          echo "Build Stamp       : ${{ env.buildstamp }}"
           echo "========================================"
           echo "Now building kernel"
 
@@ -725,7 +729,7 @@ jobs:
       - name: "Upload AnyKernel3 artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: "${{ env.KERNEL_NAME }}-${{ env.KERNEL_VERSION_LATEST }}-${{ github.run_number }}-${{ env.KERNEL_VERSION_HASH }}-${{ github.event.inputs.config_type }}"
+          name: "${{ env.KERNEL_NAME }}-${{ env.KERNEL_DEVICE_VENDOR }}-${{ env.KERNEL_DEVICE }}-${{ github.event.inputs.config_type }}-${{ env.KERNEL_VERSION_LATEST }}-${{ env.KERNEL_VERSION_HASH }}-${{ env.buildstamp }}-run${{ github.run_number }}-attempt${{ github.run_attempt }}-${{ github.run_id }}"
           path: ./AnyKernel3
 
   publish:
@@ -737,6 +741,7 @@ jobs:
 
     env:
       buildfile: "${{ needs.Set-repos.outputs.buildfile }}"
+      buildstamp: "${{ needs.Set-repos.outputs.buildstamp }}"
 
     steps:
       - name: "Install tools"
@@ -778,5 +783,5 @@ jobs:
       - name: "Publish Artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: all-kernel-build-dumps
+          name: "all-kernel-build-dumps-${{ github.event.inputs.config_type }}-${{ env.buildstamp }}-run${{ github.run_number }}-attempt${{ github.run_attempt }}-${{ github.run_id }}"
           path: packed_kernels
